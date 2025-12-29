@@ -1,0 +1,12 @@
+[workspace]
+authors = ["MatteoGuglielmi-Tech <matteo.guglielmi.ma.gu@gmail.com>"]
+channels = ["conda-forge"]
+name = "passgen_ui"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+rust = ">=1.92.0,<1.93"
+rust-src = ">=1.92.0,<2"
