@@ -1,6 +1,6 @@
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use rand::{RngCore, rngs::OsRng};
+use rand::{RngCore};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -187,5 +187,57 @@ impl Storage {
     /// Get the storage file path for display
     pub fn path(&self) -> &PathBuf {
         &self.file_path
+    }
+
+    /// Change the master password
+    /// Returns a new Storage instance with the new key
+    pub fn change_master_password(
+        &self,
+        new_password: &str,
+    ) -> Result<Storage, String> {
+        // Load existing entries with current key
+        let entries = self.load()?;
+
+        // Generate new salt
+        let mut new_salt = [0u8; 16];
+        rand::rng().fill_bytes(&mut new_salt);
+
+        // Derive new key
+        let new_key = Self::derive_key(new_password, &new_salt);
+
+        // Create new storage with new key
+        let new_storage = Storage {
+            file_path: self.file_path.clone(),
+            master_key: new_key,
+        };
+
+        // Encrypt and save with new key
+        // We need to write the new salt too, so we do it manually here
+        let json = serde_json::to_string(&entries)
+            .map_err(|e| format!("Serialization failed: {}", e))?;
+
+        let mut nonce_bytes = [0u8; 12];
+        rand::rng().fill_bytes(&mut nonce_bytes);
+
+        let cipher = Aes256Gcm::new_from_slice(&new_key)
+            .map_err(|e| format!("Cipher init failed: {}", e))?;
+
+        let nonce = Nonce::from_slice(&nonce_bytes);
+        let ciphertext = cipher.encrypt(nonce, json.as_bytes())
+            .map_err(|e| format!("Encryption failed: {}", e))?;
+
+        let store = EncryptedStore {
+            salt: BASE64.encode(new_salt),
+            nonce: BASE64.encode(nonce_bytes),
+            ciphertext: BASE64.encode(ciphertext),
+        };
+
+        let output = serde_json::to_string_pretty(&store)
+            .map_err(|e| format!("Serialization failed: {}", e))?;
+
+        fs::write(&self.file_path, output)
+            .map_err(|e| format!("Failed to write file: {}", e))?;
+
+        Ok(new_storage)
     }
 }
