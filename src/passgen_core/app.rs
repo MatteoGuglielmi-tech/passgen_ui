@@ -1,5 +1,14 @@
 use rand::Rng;
 
+/// Viewer modes for password list
+#[derive(PartialEq, Clone, Copy)]
+pub enum ViewMode {
+    Browse,
+    ConfirmDelete,
+    EditName,
+    EditPassword,
+}
+
 /// Available input fields
 #[derive(PartialEq, Clone, Copy)]
 pub enum InputField {

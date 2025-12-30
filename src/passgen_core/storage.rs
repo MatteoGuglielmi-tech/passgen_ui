@@ -1,6 +1,6 @@
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use rand::{RngCore};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -189,12 +189,29 @@ impl Storage {
         &self.file_path
     }
 
+    /// Delete a password entry by index
+    pub fn delete(&self, index: usize) -> Result<(), String> {
+        let mut entries = self.load()?;
+        if index >= entries.len() {
+            return Err("Invalid index".into());
+        }
+        entries.remove(index);
+        self.save_all(&entries)
+    }
+
+    /// Update a password entry by index
+    pub fn update(&self, index: usize, entry: PasswordEntry) -> Result<(), String> {
+        let mut entries = self.load()?;
+        if index >= entries.len() {
+            return Err("Invalid index".into());
+        }
+        entries[index] = entry;
+        self.save_all(&entries)
+    }
+
     /// Change the master password
     /// Returns a new Storage instance with the new key
-    pub fn change_master_password(
-        &self,
-        new_password: &str,
-    ) -> Result<Storage, String> {
+    pub fn change_master_password(&self, new_password: &str) -> Result<Storage, String> {
         // Load existing entries with current key
         let entries = self.load()?;
 
@@ -213,8 +230,8 @@ impl Storage {
 
         // Encrypt and save with new key
         // We need to write the new salt too, so we do it manually here
-        let json = serde_json::to_string(&entries)
-            .map_err(|e| format!("Serialization failed: {}", e))?;
+        let json =
+            serde_json::to_string(&entries).map_err(|e| format!("Serialization failed: {}", e))?;
 
         let mut nonce_bytes = [0u8; 12];
         rand::rng().fill_bytes(&mut nonce_bytes);
@@ -223,7 +240,8 @@ impl Storage {
             .map_err(|e| format!("Cipher init failed: {}", e))?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
-        let ciphertext = cipher.encrypt(nonce, json.as_bytes())
+        let ciphertext = cipher
+            .encrypt(nonce, json.as_bytes())
             .map_err(|e| format!("Encryption failed: {}", e))?;
 
         let store = EncryptedStore {
@@ -235,8 +253,7 @@ impl Storage {
         let output = serde_json::to_string_pretty(&store)
             .map_err(|e| format!("Serialization failed: {}", e))?;
 
-        fs::write(&self.file_path, output)
-            .map_err(|e| format!("Failed to write file: {}", e))?;
+        fs::write(&self.file_path, output).map_err(|e| format!("Failed to write file: {}", e))?;
 
         Ok(new_storage)
     }
